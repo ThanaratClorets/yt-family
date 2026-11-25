@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0f0f0f">
+<title>YouTube Family · ค่าบริการ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<style>
+:root{color-scheme:light dark;--bg:light-dark(#fff,#0f0f0f);--ink:light-dark(#0f0f0f,#f1f1f1);--mut:light-dark(#606060,#aaa);--line:light-dark(#e5e5e5,#2a2a2a);--card:light-dark(#f6f6f6,#1a1a1a);--red:#ff0033;--redink:light-dark(#d4002a,#ff4d6d);--ok:light-dark(#0b7a3b,#4cc38a)}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "IBM Plex Sans Thai",system-ui,sans-serif;overflow-x:clip}
+.wrap{max-width:760px;margin:0 auto;padding:clamp(20px,4vw,40px) max(4vw,16px) 72px}
+header{display:flex;align-items:center;gap:10px;justify-content:space-between;flex-wrap:wrap}
+h1{font-size:clamp(24px,5vw,32px);line-height:1.1;margin:0;display:flex;align-items:center;gap:10px}
+.logo{width:38px;height:27px;flex:none}
+h2{font-size:20px;margin:32px 0 10px}
+.mut{color:var(--mut)}.small{font-size:14px}
+label{display:grid;gap:4px;font-size:14px;color:var(--mut)}
+input,select{font:inherit;font-size:16px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-height:46px;width:100%}
+input:focus-visible,select:focus-visible,button:focus-visible{outline:3px solid var(--red);outline-offset:2px}
+button{font:inherit;font-size:15px;font-weight:600;min-height:44px;padding:8px 16px;border-radius:999px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+button.pri{background:var(--red);border-color:var(--red);color:#fff}
+button.ghost{border-color:transparent;background:transparent;color:var(--mut)}
+button:disabled{opacity:.5;cursor:default}
+.box{max-width:400px;margin:8vh auto 0;display:grid;gap:14px}
+.err{color:var(--redink);font-size:14px;min-height:1.2em}
+.panel{margin-top:20px;padding:22px;border-radius:18px;background:var(--card)}
+.big{font-size:clamp(40px,11vw,60px);font-weight:700;line-height:1;white-space:nowrap}
+.due{color:var(--redink)}.okc{color:var(--ok)}
+.qr{display:grid;justify-items:center;gap:6px;margin-top:18px;padding:16px;background:#fff;border-radius:14px;color:#111}
+.qr img{width:min(260px,70vw);height:auto;image-rendering:pixelated}
+.qr .pp{font-size:14px;text-align:center}
+.qrhead{background:#113566;color:#fff;font-weight:700;font-size:14px;padding:4px 14px;border-radius:6px}
+.hist{list-style:none;padding:0;margin:0}
+.hist li{display:flex;gap:10px;justify-content:space-between;align-items:center;border-top:1px solid var(--line);padding:11px 0}
+.num{white-space:nowrap;font-weight:600}
+.m{border-top:1px solid var(--line);padding:16px 0}
+.mh{display:flex;gap:12px;align-items:flex-start}
+.av{width:44px;height:44px;border-radius:50%;flex:none;display:grid;place-items:center;color:#fff;font-weight:700;font-size:18px}
+.mi{flex:1}.nm{font-weight:600;font-size:17px;overflow-wrap:anywhere}
+.amt{text-align:right;white-space:nowrap}.amt strong{display:block;font-size:22px;line-height:1.1}
+.acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;padding-left:56px}
+.warn{color:var(--redink)}
+.edit{margin:12px 0 0 56px;padding:14px;border-radius:14px;background:var(--card);display:grid;gap:12px}
+.row2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+.chk{display:flex;align-items:center;gap:8px;color:var(--ink);font-size:15px}.chk input{width:20px;height:20px;min-height:0}
+.tag{display:inline-block;font-size:12px;padding:1px 8px;border-radius:999px;background:var(--line);color:var(--mut);margin-left:6px;vertical-align:2px}
+pre{white-space:pre-wrap;font:inherit;font-size:15px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px;margin:0;overflow-wrap:anywhere}
+.top{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin-top:14px}.top select{width:auto}
+.set{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+#modal{position:fixed;inset:0;background:#0009;display:none;place-items:center;padding:16px;z-index:8}
+#modal.on{display:grid}
+#modal .card{background:var(--bg);border-radius:18px;padding:20px;max-width:440px;width:100%;display:grid;gap:12px}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);opacity:0;background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:999px;font-size:15px;transition:.25s;pointer-events:none;z-index:9}
+#toast.on{opacity:1;transform:translateX(-50%)}
+@media(prefers-reduced-motion:reduce){#toast{transition:none}}
+@media(max-width:520px){.acts,.edit{padding-left:0;margin-left:0}.row2{grid-template-columns:minmax(0,1fr)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1><svg class="logo" viewBox="0 0 40 28" aria-hidden="true"><rect width="40" height="28" rx="7" fill="#ff0033"/><path d="M16 8.5v11l9.5-5.5z" fill="#fff"/></svg>YouTube Family</h1>
+    <button class="ghost" id="logout" hidden>ออกจากระบบ</button>
+  </header>
+  <main id="app"><p class="mut">กำลังโหลด…</p></main>
+</div>
+<div id="modal" role="dialog" aria-modal="true"><div class="card" id="modalCard"></div></div>
+<div id="toast" role="status"></div>
+
+<script>
+{
+// ====== ตั้งค่า: ใส่ค่าจาก Supabase > Project Settings > API ======
+const SUPABASE_URL = 'https://irevekfxosysypeqtetz.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_wmqOmhG6l3nC39YOPOkI5A_Q1n6wfNO';
+// ================================================================
+
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const $ = s => document.querySelector(s);
+const app = $('#app');
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const MS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+const ML = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+const COLORS = ['#ff0033','#3b6ff5','#f59e0b','#10a37f','#a855f7','#ec4899'];
+const yy = i => String((Math.floor(i/12)+543)%100).padStart(2,'0');
+const ms = i => MS[i%12]+' '+yy(i);
+const ml = i => ML[i%12]+' '+yy(i);
+const baht = n => '฿'+Number(n).toLocaleString('th-TH');
+const thDate = d => { const [y,m,dd] = String(d).split('-').map(Number); return `${dd} ${MS[m-1]} ${(y+543)%100}`; };
+const SITE = location.origin + location.pathname;
+
+let tt; function toast(t){ const e=$('#toast'); e.textContent=t; e.classList.add('on'); clearTimeout(tt); tt=setTimeout(()=>e.classList.remove('on'),2400); }
+function modal(html){ $('#modalCard').innerHTML=html; $('#modal').classList.add('on'); }
+function closeModal(){ $('#modal').classList.remove('on'); }
+async function copy(t){ try{ await navigator.clipboard.writeText(t); toast('คัดลอกแล้ว'); } catch(e){ toast('คัดลอกไม่ได้ ลองกดค้างที่ข้อความแล้วคัดลอกเอง'); } }
+
+// ---------- ยอดค้าง ----------
+function owe(m, S){
+  if(!m.billed || m.paid_until == null) return null;
+  const months = Math.max(0, S.bill_until - m.paid_until);
+  return { months, from:m.paid_until+1, to:S.bill_until, base:months*S.price, total:months*S.price + (m.adjust||0) };
+}
+function rangeText(o){
+  if(!o.months) return '—';
+  if(o.from === o.to) return ml(o.from);
+  return `${ML[o.from%12]}${yy(o.from)===yy(o.to)?'':' '+yy(o.from)} – ${ml(o.to)}`;
+}
+function billMsg(m, S){
+  const o = owe(m,S); if(!o) return '';
+  let t = `📢 แจ้งยอดค่าใช้จ่าย YouTube Premium\n\n• ค่าใช้จ่ายเดือนละ ${S.price} บาท (1 คน)\n• ระยะเวลา: ${rangeText(o)} (${o.months} เดือน)\n• รวม: ${S.price} × ${o.months} = ${o.base.toLocaleString('th-TH')} บาท`;
+  if(m.adjust) t += `\n• ปรับยอด: ${m.adjust>0?'+':''}${m.adjust} บาท${m.note?' ('+m.note+')':''}\n• ยอดที่ต้องชำระ: ${o.total.toLocaleString('th-TH')} บาท`;
+  t += `\n\nสแกน QR พร้อมเพย์ได้ที่ ${SITE}\nหรือโอนพร้อมเพย์ ${S.promptpay} ${S.payee} 🙏`;
+  return t;
+}
+
+// ---------- PromptPay QR (EMVCo) ----------
+function crc16(s){ let c=0xFFFF; for(let i=0;i<s.length;i++){ c^=s.charCodeAt(i)<<8; for(let j=0;j<8;j++) c=(c&0x8000)?((c<<1)^0x1021)&0xFFFF:(c<<1)&0xFFFF; } return c.toString(16).toUpperCase().padStart(4,'0'); }
+function ppPayload(id, amount){
+  const f = (t,v) => t + String(v.length).padStart(2,'0') + v;
+  const d = String(id).replace(/\D/g,'');
+  const acc = d.length >= 13 ? f('02', d) : f('01', ('0000000000000' + d.replace(/^0/,'66')).slice(-13));
+  let p = f('00','01') + f('01', amount ? '12' : '11') + f('29', f('00','A000000677010111') + acc) + f('53','764');
+  if(amount) p += f('54', Number(amount).toFixed(2));
+  p += f('58','TH') + '6304';
+  return p + crc16(p);
+}
+function qrImg(text){ const q = qrcode(0,'M'); q.addData(text); q.make(); return q.createDataURL(8, 16); }
+
+// ---------- หน้า: ล็อกอิน ----------
+function viewLogin(msg=''){
+  $('#logout').hidden = true;
+  app.innerHTML = `<form class="box" id="f">
+    <h2 style="margin:0">เข้าสู่ระบบ</h2>
+    <p class="mut small" style="margin:0">ใช้อีเมลและรหัสผ่านที่ได้รับจากพี่เจมส์</p>
+    <label>อีเมล<input id="em" type="email" autocomplete="username" required></label>
+    <label>รหัสผ่าน<input id="pw" type="password" autocomplete="current-password" required></label>
+    <div class="err" id="er">${esc(msg)}</div>
+    <button class="pri" id="go">เข้าสู่ระบบ</button></form>`;
+  $('#f').addEventListener('submit', async e => {
+    e.preventDefault(); $('#go').disabled = true; $('#er').textContent = '';
+    const { error } = await sb.auth.signInWithPassword({ email:$('#em').value.trim(), password:$('#pw').value });
+    if(error){ $('#er').textContent = 'อีเมลหรือรหัสผ่านไม่ถูกต้อง'; $('#go').disabled = false; return; }
+    route();
+  });
+}
+
+// ---------- หน้า: บังคับเปลี่ยนรหัส ----------
+function viewChange(){
+  app.innerHTML = `<form class="box" id="f">
+    <h2 style="margin:0">ตั้งรหัสผ่านใหม่</h2>
+    <p class="mut small" style="margin:0">เข้าครั้งแรกต้องเปลี่ยนรหัสผ่านก่อน อย่างน้อย 8 ตัวอักษร</p>
+    <label>รหัสผ่านใหม่<input id="p1" type="password" autocomplete="new-password" minlength="8" required></label>
+    <label>ยืนยันรหัสผ่านใหม่<input id="p2" type="password" autocomplete="new-password" minlength="8" required></label>
+    <div class="err" id="er"></div>
+    <button class="pri" id="go">บันทึกรหัสผ่าน</button></form>`;
+  $('#f').addEventListener('submit', async e => {
+    e.preventDefault();
+    const a = $('#p1').value, b = $('#p2').value, er = $('#er');
+    if(a.length < 8) return er.textContent = 'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร';
+    if(a !== b) return er.textContent = 'รหัสผ่านทั้งสองช่องไม่ตรงกัน';
+    $('#go').disabled = true;
+    const { error } = await sb.auth.updateUser({ password:a });
+    if(error){ er.textContent = /different|same/i.test(error.message) ? 'ต้องไม่ซ้ำกับรหัสเดิม' : 'เปลี่ยนรหัสไม่สำเร็จ: '+error.message; $('#go').disabled = false; return; }
+    await sb.rpc('password_changed');
+    toast('ตั้งรหัสผ่านใหม่แล้ว'); route();
+  });
+}
+
+// ---------- หน้า: สมาชิก ----------
+async function viewMember(me){
+  const [{ data:S }, { data:pays }] = await Promise.all([
+    sb.from('settings').select('*').single(),
+    sb.from('payments').select('*').eq('member_id', me.id).order('paid_on', { ascending:false })
+  ]);
+  const o = owe(me, S);
+  let main;
+  if(!me.billed) main = `<div class="big okc">ไม่มียอด</div>`;
+  else if(!o) main = `<div class="mut">ยังไม่มียอด รอแอดมินตั้งค่า</div>`;
+  else if(o.total <= 0) main = `<div class="big okc">จ่ายครบแล้ว</div><div class="mut small" style="margin-top:8px">จ่ายถึง ${ml(me.paid_until)}</div>`;
+  else main = `<div class="big due">${baht(o.total)}</div>
+    <div style="margin-top:10px">${rangeText(o)} · ${o.months} เดือน × ${S.price} บาท${me.adjust?` · ปรับยอด ${me.adjust>0?'+':''}${me.adjust}${me.note?' ('+esc(me.note)+')':''}`:''}</div>
+    <div class="mut small">จ่ายแล้วถึง ${ms(me.paid_until)}</div>
+    <div class="qr"><div class="qrhead">PromptPay</div><img alt="QR พร้อมเพย์ ${o.total} บาท" src="${qrImg(ppPayload(S.promptpay, o.total))}">
+      <div class="pp"><b>${baht(o.total)}</b><br>${esc(S.payee)} · ${esc(S.promptpay)}</div></div>
+    <p class="mut small" style="margin:10px 0 0">สแกนด้วยแอปธนาคาร แล้วส่งสลิปให้พี่เจมส์ ยอดจะอัปเดตเมื่อแอดมินยืนยัน</p>`;
+  app.innerHTML = `<p class="mut" style="margin:18px 0 0">สวัสดี ${esc(me.name)}</p>
+    <section class="panel"><div class="mut small">ยอดที่ต้องชำระ (ถึง ${ms(S.bill_until)})</div>${main}</section>
+    <h2>ประวัติการชำระ</h2>
+    <ul class="hist">${pays && pays.length ? pays.map(p => `<li><span>${thDate(p.paid_on)}<br><span class="mut small">${ms(p.from_m)} – ${ms(p.to_m)}</span></span><span class="num">${baht(p.amount)}</span></li>`).join('') : '<li class="mut">ยังไม่มีประวัติ</li>'}</ul>
+    <h2>บัญชี</h2><button id="chg">เปลี่ยนรหัสผ่าน</button>`;
+  $('#chg').addEventListener('click', viewChange);
+}
+
+// ---------- หน้า: แอดมิน ----------
+let A = { S:null, members:[], pays:[], open:null };
+async function loadAdmin(){
+  const [s, m, p] = await Promise.all([
+    sb.from('settings').select('*').single(),
+    sb.from('members').select('*').order('sort').order('id'),
+    sb.from('payments').select('*, members(name)').order('created_at', { ascending:false }).limit(60)
+  ]);
+  A.S = s.data; A.members = m.data || []; A.pays = p.data || [];
+  renderAdmin();
+}
+function monthOpts(sel, none){
+  let h = none ? '<option value="">— ยังไม่ระบุ —</option>' : '';
+  for(let i = 2025*12; i <= 2028*12+11; i++) h += `<option value="${i}"${i===sel?' selected':''}>${ml(i)}</option>`;
+  return h;
+}
+function renderAdmin(){
+  const S = A.S; let sum = 0;
+  const rows = A.members.map((m,k) => {
+    const o = owe(m,S); if(o && o.total > 0) sum += o.total;
+    let right, status;
+    if(!m.billed){ right = `<div class="amt mut"><strong style="font-size:16px">ไม่เก็บ</strong></div>`; status = 'ไม่เรียกเก็บ'; }
+    else if(!o){ right = `<div class="amt"><strong style="font-size:16px">?</strong></div>`; status = `<span class="warn">ยังไม่ได้ตั้งว่าจ่ายถึงเดือนไหน</span>`; }
+    else { right = `<div class="amt"><strong class="${o.total>0?'due':'okc'}">${o.total>0?baht(o.total):'ครบ'}</strong><span class="mut small">${o.months} เดือน</span></div>`;
+      status = `จ่ายถึง ${ms(m.paid_until)}${o.months?` · ค้าง ${ms(o.from)}–${ms(o.to)}`:''}${m.adjust?` · ปรับ ${m.adjust>0?'+':''}${m.adjust}`:''}`; }
+    const acc = m.user_id ? (m.must_change_password ? '<span class="tag">รอเปลี่ยนรหัส</span>' : '<span class="tag">มีบัญชีแล้ว</span>') : (m.email ? '<span class="tag">ยังไม่สร้างบัญชี</span>' : '');
+    const due = o && o.total > 0;
+    const acts = (due ? `<button class="pri" data-a="copy" data-k="${k}">คัดลอกข้อความ</button><button data-a="paid" data-k="${k}">รับเงินแล้ว ${baht(o.total)}</button>` : '')
+      + (m.email && !m.is_admin ? `<button data-a="login" data-k="${k}">${m.user_id?'รีเซ็ตรหัส':'สร้างยูสเซอร์'}</button>` : '')
+      + `<button class="ghost" data-a="edit" data-k="${k}">${A.open===m.id?'ปิด':'แก้ไข'}</button>`;
+    const ed = A.open === m.id ? `<div class="edit">
+      <label class="chk"><input type="checkbox" id="eB" ${m.billed?'checked':''}>เรียกเก็บเงินคนนี้</label>
+      <div class="row2"><label>ชื่อ<input id="eN" value="${esc(m.name)}"></label><label>อีเมล (ใช้ล็อกอิน)<input id="eE" type="email" value="${esc(m.email)}"></label></div>
+      <label>จ่ายแล้วถึงเดือน<select id="eP">${monthOpts(m.paid_until, true)}</select></label>
+      <div class="row2"><label>ปรับยอด (+ เพิ่ม / − ลด บาท)<input id="eA" type="number" inputmode="numeric" value="${m.adjust||0}"></label><label>เหตุผล<input id="eT" value="${esc(m.note)}" placeholder="เช่น จ่ายเกินรอบก่อน"></label></div>
+      ${due ? `<pre>${esc(billMsg(m,S))}</pre>` : ''}
+      <div style="display:flex;flex-wrap:wrap;gap:8px"><button class="pri" data-a="save" data-k="${k}">บันทึก</button>${m.is_admin?'':`<button class="ghost" data-a="del" data-k="${k}">ลบสมาชิก</button>`}</div></div>` : '';
+    return `<div class="m"><div class="mh"><div class="av" style="background:${COLORS[k%6]}">${esc([...m.name.trim()][0]||'?')}</div>
+      <div class="mi"><div class="nm">${esc(m.name)}${m.is_admin?'<span class="tag">แอดมิน</span>':''}${acc}</div><div class="mut small">${esc(m.email||'ไม่มีอีเมล')}</div><div class="small" style="margin-top:2px">${status}</div></div>${right}</div>
+      <div class="acts">${acts}</div>${ed}</div>`;
+  }).join('');
+  app.innerHTML = `<div class="top"><label for="until" style="font-size:15px;color:var(--ink)">เก็บถึงเดือน</label><select id="until">${monthOpts(S.bill_until)}</select></div>
+    <section class="panel"><div class="mut small">ยอดค้างรวมทุกคน · ${S.price} บาท/คน/เดือน</div><div class="big">${baht(sum)}</div></section>
+    <h2>สมาชิก</h2>${rows}<button data-a="add" style="margin-top:8px">+ เพิ่มสมาชิก</button>
+    <h2>ประวัติรับเงิน</h2>
+    <ul class="hist">${A.pays.length ? A.pays.map((p,j) => `<li><span><b>${esc(p.members?.name||'-')}</b><br><span class="mut small">${thDate(p.paid_on)} · ${ms(p.from_m)}–${ms(p.to_m)}</span></span><span style="display:flex;gap:6px;align-items:center"><span class="num">${baht(p.amount)}</span>${j===0?`<button class="ghost" data-a="undo" data-id="${p.id}">ยกเลิก</button>`:''}</span></li>`).join('') : '<li class="mut">ยังไม่มีรายการ</li>'}</ul>
+    <h2>ตั้งค่า</h2>
+    <div class="set"><label>ราคาต่อคน/เดือน (บาท)<input id="sPrice" type="number" inputmode="numeric" value="${S.price}"></label>
+      <label>พร้อมเพย์ (เบอร์หรือเลขบัตร)<input id="sPP" inputmode="numeric" value="${esc(S.promptpay)}"></label>
+      <label>ชื่อบัญชี<input id="sPayee" value="${esc(S.payee)}"></label></div>
+    <button data-a="settings" style="margin-top:12px">บันทึกการตั้งค่า</button>`;
+  $('#until').addEventListener('change', async e => { await dbDo(sb.from('settings').update({ bill_until:+e.target.value }).eq('id',1)); });
+}
+async function dbDo(q, ok){
+  const { error } = await q;
+  if(error){ toast('ไม่สำเร็จ: ' + error.message); return false; }
+  if(ok) toast(ok); await loadAdmin(); return true;
+}
+app.addEventListener('click', async e => {
+  const b = e.target.closest('button[data-a]'); if(!b || !A.S) return;
+  const a = b.dataset.a, m = A.members[+b.dataset.k];
+  if(a === 'copy') copy(billMsg(m, A.S));
+  else if(a === 'edit'){ A.open = A.open === m.id ? null : m.id; renderAdmin(); }
+  else if(a === 'paid'){ b.disabled = true; await dbDo(sb.rpc('mark_paid', { p_member:m.id }), 'บันทึกรับเงินแล้ว'); }
+  else if(a === 'undo'){ await dbDo(sb.rpc('undo_payment', { p_id:+b.dataset.id }), 'ยกเลิกรายการแล้ว'); }
+  else if(a === 'save'){
+    const p = $('#eP').value;
+    A.open = null;
+    await dbDo(sb.from('members').update({ billed:$('#eB').checked, name:$('#eN').value.trim()||m.name, email:$('#eE').value.trim().toLowerCase()||null,
+      paid_until: p===''?null:+p, adjust:+$('#eA').value||0, note:$('#eT').value.trim() }).eq('id', m.id), 'บันทึกแล้ว');
+  }
+  else if(a === 'del'){
+    if(!b.dataset.sure){ b.dataset.sure='1'; b.textContent='กดอีกครั้งเพื่อยืนยันลบ'; b.style.color='var(--redink)'; return; }
+    A.open = null; await dbDo(sb.from('members').delete().eq('id', m.id), 'ลบแล้ว');
+  }
+  else if(a === 'add'){
+    const { data, error } = await sb.from('members').insert({ name:'สมาชิกใหม่', sort:A.members.length }).select().single();
+    if(error) return toast('ไม่สำเร็จ: '+error.message);
+    A.open = data.id; await loadAdmin();
+  }
+  else if(a === 'settings'){
+    await dbDo(sb.from('settings').update({ price:+$('#sPrice').value||A.S.price, promptpay:$('#sPP').value.trim(), payee:$('#sPayee').value.trim() }).eq('id',1), 'บันทึกการตั้งค่าแล้ว');
+  }
+  else if(a === 'login'){
+    if(m.user_id && !b.dataset.sure){ b.dataset.sure='1'; b.textContent='กดอีกครั้งเพื่อรีเซ็ตรหัส'; return; }
+    b.disabled = true; b.textContent = 'กำลังสร้าง…';
+    const { data, error } = await sb.functions.invoke('create-login', { body:{ member_id:m.id } });
+    if(error || !data?.password){
+      let msg = error?.message || 'ไม่สำเร็จ';
+      try{ const j = await error.context.json(); if(j.error) msg = j.error; }catch(_){}
+      toast(msg); return loadAdmin();
+    }
+    const two = `${data.email}\n${data.password}`;
+    const withLink = `เข้าเว็บดูยอด YouTube Premium ได้ที่\n${SITE}\n\nยูสเซอร์: ${data.email}\nพาสเวิร์ด: ${data.password}\n\n(เข้าครั้งแรกระบบจะให้ตั้งรหัสใหม่)`;
+    modal(`<h2 style="margin:0">ยูสเซอร์ของ ${esc(m.name)}</h2><pre>${esc(two)}</pre>
+      <p class="mut small" style="margin:0">รหัสนี้แสดงครั้งเดียว ปิดหน้านี้แล้วจะดูอีกไม่ได้ (กดรีเซ็ตรหัสเพื่อสร้างใหม่)</p>
+      <div style="display:flex;flex-wrap:wrap;gap:8px"><button class="pri" id="c1">คัดลอก 2 บรรทัด</button><button id="c2">คัดลอกพร้อมลิงก์เว็บ</button><button class="ghost" id="cx">ปิด</button></div>`);
+    $('#c1').onclick = () => copy(two); $('#c2').onclick = () => copy(withLink); $('#cx').onclick = closeModal;
+    loadAdmin();
+  }
+});
+
+// ---------- ตัวเลือกหน้า ----------
+async function route(){
+  const { data:{ session } } = await sb.auth.getSession();
+  if(!session) return viewLogin();
+  $('#logout').hidden = false;
+  const { data:me, error } = await sb.from('members').select('*').eq('user_id', session.user.id).maybeSingle();
+  if(error || !me){ await sb.auth.signOut(); return viewLogin('บัญชีนี้ยังไม่ได้ผูกกับสมาชิก ติดต่อแอดมิน'); }
+  if(me.must_change_password) return viewChange();
+  if(me.is_admin) return loadAdmin();
+  return viewMember(me);
+}
+$('#logout').addEventListener('click', async () => { await sb.auth.signOut(); A = { S:null, members:[], pays:[], open:null }; viewLogin(); });
+route();
+}
+</script>
+</body>
+</html>

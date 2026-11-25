@@ -1,5 +1,7 @@
 -- ราคาแบบมีผลตั้งแต่เดือนที่กำหนด (ราคาเดิมของเดือนที่ยังไม่จ่ายจะไม่ถูกเปลี่ยน)
--- รันใน Supabase Dashboard > SQL Editor ครั้งเดียว (ควรรัน slip_payments.sql ก่อน)
+-- รันใน Supabase Dashboard > SQL Editor (ลำดับ: slip_payments.sql -> price_changes.sql -> bill_day.sql)
+-- หมายเหตุ: ไฟล์ที่รันทีหลังจะทับฟังก์ชัน mark_paid/amount_due/mark_paid_by_slip ของไฟล์ก่อนหน้า
+-- ถ้ารันไฟล์นี้ซ้ำ ให้รัน bill_day.sql ตามหลังอีกครั้งเสมอ
 --
 -- แนวคิด: เก็บ "ราคาที่เริ่มใช้ตั้งแต่เดือน X" เป็นรายการ ราคาของเดือนใดคือรายการล่าสุดที่ from_m <= เดือนนั้น
 -- ตัวอย่าง: (0, 87) และ (24324, 99) -> เดือนก่อน ม.ค. 70 คิด 87 ตั้งแต่ ม.ค. 70 คิด 99
@@ -9,6 +11,9 @@ create table if not exists public.price_changes (
   price integer not null check (price >= 0),
   created_at timestamptz not null default now()
 );
+
+-- ให้ผู้ล็อกอินเข้าถึงตารางได้ (ขอบเขตจริงคุมด้วย RLS ด้านล่าง: ทุกคนอ่านได้ เฉพาะแอดมินเขียนได้)
+grant select, insert, update, delete on public.price_changes to authenticated;
 
 alter table public.price_changes enable row level security;
 drop policy if exists pc_read on public.price_changes;

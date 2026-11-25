@@ -45,6 +45,9 @@ button:disabled{opacity:.5;cursor:default}
 .amt{text-align:right;white-space:nowrap}.amt strong{display:block;font-size:22px;line-height:1.1}
 .acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;padding-left:56px}
 .rt{display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex:none}
+.tabs{display:flex;gap:8px;margin-top:14px}
+.tabs .tab{flex:1}
+.tabs .tab[aria-current=page]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
 .more{position:relative;display:inline-block}
 .more>button{display:grid;place-items:center;min-height:34px;min-width:44px;padding:2px 12px;border-color:var(--line);color:var(--ink)}
 .menu{position:absolute;right:0;top:calc(100% + 6px);z-index:6;min-width:190px;display:grid;gap:2px;padding:6px;border-radius:14px;background:var(--card);border:1px solid var(--line);box-shadow:0 8px 24px #0006}
@@ -267,16 +270,29 @@ async function viewMember(me){
 }
 
 // ---------- หน้า: แอดมิน ----------
-let A = { S:null, members:[], pays:[], open:null };
+let A = { S:null, members:[], pays:[], open:null, page:'main', hist:[], hMem:'' };
 async function loadAdmin(){
-  const [s, m, p, pr] = await Promise.all([
+  const [s, m, p, pr, h] = await Promise.all([
     sb.from('settings').select('*').single(),
     sb.from('members').select('*').order('sort').order('id'),
     sb.from('payments').select('*, members(name)').order('created_at', { ascending:false }).limit(60),
-    sb.from('price_changes').select('*')
+    sb.from('price_changes').select('*'),
+    A.page === 'history' ? sb.from('payments').select('*, members(name)').order('created_at', { ascending:false }).limit(1000) : Promise.resolve(null)
   ]);
   A.S = s.data; A.priceErr = !!pr.error; setPrices(pr.data, A.S); A.members = m.data || []; A.pays = p.data || [];
+  if(h) A.hist = h.data || [];
   renderAdmin();
+}
+const tabsHtml = () => `<nav class="tabs" aria-label="เมนูแอดมิน">${[['main','สมาชิก'],['history','ประวัติรับเงิน']].map(([p,t]) => `<button class="tab" data-a="tab" data-p="${p}"${A.page===p?' aria-current="page"':''}>${t}</button>`).join('')}</nav>`;
+function renderHistory(){
+  const list = A.hist.filter(p => !A.hMem || String(p.member_id) === A.hMem);
+  const total = list.reduce((s,p) => s + p.amount, 0), latestId = A.pays[0]?.id;
+  app.innerHTML = `${tabsHtml()}
+    <section class="panel"><div class="mut small">${A.hMem ? 'ยอดรับเงินของสมาชิกที่เลือก' : 'ยอดรับเงินทั้งหมด'} · ${list.length} รายการ</div><div class="big">${baht(total)}</div></section>
+    <div class="top"><label for="hMem" style="font-size:15px;color:var(--ink)">สมาชิก</label><select id="hMem"><option value="">ทั้งหมด</option>${A.members.map(m => `<option value="${m.id}"${String(m.id)===A.hMem?' selected':''}>${esc(m.name)}</option>`).join('')}</select></div>
+    <ul class="hist" style="margin-top:12px">${list.length ? list.map(p => `<li><span><b>${esc(p.members?.name||'-')}</b>${p.trans_ref?'<span class="tag">ตรวจสลิป</span>':''}<br><span class="mut small">${thDate(p.paid_on)} · ${ms(p.from_m)}–${ms(p.to_m)}</span></span><span style="display:flex;gap:6px;align-items:center"><span class="num">${baht(p.amount)}</span>${p.id===latestId?`<button class="ghost" data-a="undo" data-id="${p.id}">ยกเลิก</button>`:''}</span></li>`).join('') : '<li class="mut">ยังไม่มีรายการ</li>'}</ul>
+    <p class="mut small" style="margin:12px 0 0">ยกเลิกรายการได้เฉพาะรายการล่าสุดของระบบ</p>`;
+  $('#hMem').addEventListener('change', e => { A.hMem = e.target.value; renderHistory(); });
 }
 function monthOpts(sel, none){
   let h = none ? '<option value="">— ยังไม่ระบุ —</option>' : '';
@@ -284,6 +300,7 @@ function monthOpts(sel, none){
   return h;
 }
 function renderAdmin(){
+  if(A.page === 'history') return renderHistory();
   const S = A.S; let sum = 0;
   const rows = A.members.map((m,k) => {
     const o = owe(m,S); if(o && o.total > 0) sum += o.total;
@@ -310,17 +327,17 @@ function renderAdmin(){
       <div class="mi"><div class="nm">${esc(m.name)}${m.is_admin?'<span class="tag">แอดมิน</span>':''}${acc}</div><div class="mut small">${esc(m.email||'ไม่มีอีเมล')}</div><div class="small" style="margin-top:2px">${status}</div></div><div class="rt">${right}${more}</div></div>
       ${acts ? `<div class="acts">${acts}</div>` : ''}${ed}</div>`;
   }).join('');
-  app.innerHTML = `<div class="top"><label for="until" style="font-size:15px;color:var(--ink)">เก็บถึงเดือน</label><select id="until">${monthOpts(S.bill_until)}</select></div>
+  const hasDay = 'bill_day' in S, auto = hasDay && S.bill_day != null;
+  app.innerHTML = `${tabsHtml()}<div class="top"><label for="until" style="font-size:15px;color:var(--ink)">เก็บถึงเดือน</label><select id="until"${auto?' disabled':''}>${monthOpts(S.bill_until)}</select>${auto?`<span class="mut small">อัตโนมัติ · สรุปยอดทุกวันที่ ${S.bill_day}</span>`:''}</div>
     <section class="panel"><div class="mut small">ยอดค้างรวมทุกคน · ${priceAt(S.bill_until)} บาท/คน/เดือน</div><div class="big">${baht(sum)}</div></section>
     <h2>สมาชิก</h2>${rows}<button data-a="add" style="margin-top:8px">+ เพิ่มสมาชิก</button>
-    <h2>ประวัติรับเงิน</h2>
-    <ul class="hist">${A.pays.length ? A.pays.map((p,j) => `<li><span><b>${esc(p.members?.name||'-')}</b><br><span class="mut small">${thDate(p.paid_on)} · ${ms(p.from_m)}–${ms(p.to_m)}</span></span><span style="display:flex;gap:6px;align-items:center"><span class="num">${baht(p.amount)}</span>${j===0?`<button class="ghost" data-a="undo" data-id="${p.id}">ยกเลิก</button>`:''}</span></li>`).join('') : '<li class="mut">ยังไม่มีรายการ</li>'}</ul>
     <h2>ตั้งค่า</h2>
     <div class="set"><label>ราคาต่อคน/เดือน (บาท)<input id="sPrice" type="number" inputmode="numeric" value="${priceAt(S.bill_until)}"></label>
       <label>ราคาใหม่มีผลตั้งแต่เดือน<select id="sFrom">${monthOpts(S.bill_until + 1)}</select></label>
+      <label>วันสรุปยอดของเดือน<select id="sDay"${hasDay?'':' disabled'}><option value="">ไม่อัตโนมัติ (เลือกเดือนเอง)</option>${Array.from({length:28},(_,i)=>i+1).map(d => `<option value="${d}"${S.bill_day===d?' selected':''}>ทุกวันที่ ${d}</option>`).join('')}</select></label>
       <label>พร้อมเพย์ (เบอร์หรือเลขบัตร)<input id="sPP" inputmode="numeric" value="${esc(S.promptpay)}"></label>
       <label>ชื่อบัญชี<input id="sPayee" value="${esc(S.payee)}"></label></div>
-    <p class="mut small" style="margin:10px 0 0">เปลี่ยนราคาแล้ว เดือนก่อนเดือนที่เลือกที่ยังไม่จ่ายจะยังคิดราคาเดิม${A.priceErr ? ' <span class="warn">(ยังไม่พบตารางราคา ให้รัน supabase/price_changes.sql ก่อน)</span>' : ''}</p>
+    <p class="mut small" style="margin:10px 0 0">เปลี่ยนราคาแล้ว เดือนก่อนเดือนที่เลือกที่ยังไม่จ่ายจะยังคิดราคาเดิม · วันสรุปยอด: ตั้งแต่วันนั้นเก็บถึงเดือนปัจจุบัน ก่อนวันนั้นเก็บถึงเดือนก่อนหน้า (เวลาไทย)${hasDay ? '' : ' <span class="warn">(ให้รัน supabase/bill_day.sql ก่อนจึงจะตั้งวันสรุปยอดได้)</span>'}${A.priceErr ? ' <span class="warn">(ยังไม่พบตารางราคา ให้รัน supabase/price_changes.sql ก่อน)</span>' : ''}</p>
     ${PR.length > 1 ? `<p class="mut small" style="margin:6px 0 0">ประวัติราคา: ${PR.map(r => `${r.from_m === 0 ? 'เดิม' : 'ตั้งแต่ ' + ms(r.from_m)} ${r.price} บาท`).join(' → ')}</p>` : ''}
     <button data-a="settings" style="margin-top:12px">บันทึกการตั้งค่า</button>`;
   $('#until').addEventListener('change', async e => { await dbDo(sb.from('settings').update({ bill_until:+e.target.value }).eq('id',1)); });
@@ -347,6 +364,12 @@ app.addEventListener('click', async e => {
   }
   closeMenus();
   if(!b || !A.S) return;
+  if(b.dataset.a === 'tab'){
+    if(A.page === b.dataset.p) return;
+    A.page = b.dataset.p; A.open = null;
+    if(A.page === 'history'){ b.disabled = true; await loadAdmin(); } else renderAdmin();
+    window.scrollTo(0, 0); return;
+  }
   const a = b.dataset.a, m = A.members[+b.dataset.k];
   if(a === 'copy') copy(billMsg(m, A.S));
   else if(a === 'edit'){ A.open = A.open === m.id ? null : m.id; renderAdmin(); }
@@ -386,7 +409,11 @@ app.addEventListener('click', async e => {
       const rows = PR.filter(r => r.from_m !== from).concat({ from_m:from, price:np }).sort((a,b) => a.from_m - b.from_m);
       latest = rows[rows.length-1].price;
     }
-    await dbDo(sb.from('settings').update({ price:latest, promptpay:$('#sPP').value.trim(), payee:$('#sPayee').value.trim() }).eq('id',1), 'บันทึกการตั้งค่าแล้ว');
+    const upd = { price:latest, promptpay:$('#sPP').value.trim(), payee:$('#sPayee').value.trim() };
+    if('bill_day' in A.S) upd.bill_day = $('#sDay').value === '' ? null : +$('#sDay').value;
+    const okSave = await dbDo(sb.from('settings').update(upd).eq('id',1));
+    if(okSave && 'bill_day' in A.S){ await sb.rpc('roll_bill_until'); toast('บันทึกการตั้งค่าแล้ว'); await loadAdmin(); }
+    else if(okSave) toast('บันทึกการตั้งค่าแล้ว');
   }
   else if(a === 'login'){
     if(m.user_id && !b.dataset.sure){ b.dataset.sure='1'; b.textContent='กดอีกครั้งเพื่อรีเซ็ตรหัส'; return; }
@@ -412,13 +439,14 @@ async function route(){
   const { data:{ session } } = await sb.auth.getSession();
   if(!session) return viewLogin();
   $('#logout').hidden = false;
+  await sb.rpc('roll_bill_until'); // เลื่อน "เก็บถึงเดือน" ตามวันสรุปยอด (ถ้าตั้งไว้) ไม่พบฟังก์ชันก็ข้ามได้
   const { data:me, error } = await sb.from('members').select('*').eq('user_id', session.user.id).maybeSingle();
   if(error || !me){ await sb.auth.signOut(); return viewLogin('บัญชีนี้ยังไม่ได้ผูกกับสมาชิก ติดต่อแอดมิน'); }
   if(me.must_change_password) return viewChange();
   if(me.is_admin) return loadAdmin();
   return viewMember(me);
 }
-$('#logout').addEventListener('click', async () => { await sb.auth.signOut(); A = { S:null, members:[], pays:[], open:null }; viewLogin(); });
+$('#logout').addEventListener('click', async () => { await sb.auth.signOut(); A = { S:null, members:[], pays:[], open:null, page:'main', hist:[], hMem:'' }; viewLogin(); });
 route();
 }
 </script>

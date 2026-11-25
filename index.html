@@ -44,6 +44,13 @@ button:disabled{opacity:.5;cursor:default}
 .mi{flex:1}.nm{font-weight:600;font-size:17px;overflow-wrap:anywhere}
 .amt{text-align:right;white-space:nowrap}.amt strong{display:block;font-size:22px;line-height:1.1}
 .acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;padding-left:56px}
+.rt{display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex:none}
+.more{position:relative;display:inline-block}
+.more>button{display:grid;place-items:center;min-height:34px;min-width:44px;padding:2px 12px;border-color:var(--line);color:var(--ink)}
+.menu{position:absolute;right:0;top:calc(100% + 6px);z-index:6;min-width:190px;display:grid;gap:2px;padding:6px;border-radius:14px;background:var(--card);border:1px solid var(--line);box-shadow:0 8px 24px #0006}
+.menu[hidden]{display:none}
+.menu button{text-align:left;border-radius:10px;color:var(--ink);width:100%}
+.menu button:hover{background:var(--line)}
 .warn{color:var(--redink)}
 .edit{margin:12px 0 0 56px;padding:14px;border-radius:14px;background:var(--card);display:grid;gap:12px}
 .row2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
@@ -99,11 +106,27 @@ function closeModal(){ $('#modal').classList.remove('on'); }
 async function copy(t){ try{ await navigator.clipboard.writeText(t); toast('คัดลอกแล้ว'); } catch(e){ toast('คัดลอกไม่ได้ ลองกดค้างที่ข้อความแล้วคัดลอกเอง'); } }
 
 // ---------- ยอดค้าง ----------
+// ราคาแบบมีผลตั้งแต่เดือน: PR = [{from_m, price}] ราคาของเดือน i คือรายการล่าสุดที่ from_m <= i
+let PR = [], PR_FB = 0;
+function setPrices(rows, S){ PR = (rows || []).slice().sort((a,b) => a.from_m - b.from_m); PR_FB = S.price; }
+function priceAt(i){ let p = null; for(const r of PR){ if(r.from_m <= i) p = r.price; else break; } return p ?? PR_FB; }
+function segs(from, to){
+  const out = [];
+  for(let i = from; i <= to; i++){
+    const p = priceAt(i), l = out[out.length-1];
+    if(l && l.price === p){ l.to = i; l.n++; } else out.push({ from:i, to:i, price:p, n:1 });
+  }
+  return out;
+}
 function owe(m, S){
   if(!m.billed || m.paid_until == null) return null;
-  const months = Math.max(0, S.bill_until - m.paid_until);
-  return { months, from:m.paid_until+1, to:S.bill_until, base:months*S.price, total:months*S.price + (m.adjust||0) };
+  const months = Math.max(0, S.bill_until - m.paid_until), from = m.paid_until + 1;
+  const sg = months ? segs(from, S.bill_until) : [];
+  const base = sg.reduce((s,x) => s + x.price*x.n, 0);
+  return { months, from, to:S.bill_until, segs:sg, base, total:base + (m.adjust||0) };
 }
+const segLabel = s => s.from === s.to ? ms(s.from) : `${ms(s.from)}–${ms(s.to)}`;
+const priceText = o => o.segs.length === 1 ? `${o.months} เดือน × ${o.segs[0].price} บาท` : `${o.segs.map(s => `${s.n} × ${s.price}`).join(' + ')} บาท`;
 function rangeText(o){
   if(!o.months) return '—';
   if(o.from === o.to) return ml(o.from);
@@ -111,7 +134,13 @@ function rangeText(o){
 }
 function billMsg(m, S){
   const o = owe(m,S); if(!o) return '';
-  let t = `📢 แจ้งยอดค่าใช้จ่าย YouTube Premium\n\n• ค่าใช้จ่ายเดือนละ ${S.price} บาท (1 คน)\n• ระยะเวลา: ${rangeText(o)} (${o.months} เดือน)\n• รวม: ${S.price} × ${o.months} = ${o.base.toLocaleString('th-TH')} บาท`;
+  let t = `📢 แจ้งยอดค่าใช้จ่าย YouTube Premium\n\n`;
+  if(o.segs.length <= 1){
+    const p = o.segs[0]?.price ?? priceAt(S.bill_until);
+    t += `• ค่าใช้จ่ายเดือนละ ${p} บาท (1 คน)\n• ระยะเวลา: ${rangeText(o)} (${o.months} เดือน)\n• รวม: ${p} × ${o.months} = ${o.base.toLocaleString('th-TH')} บาท`;
+  } else {
+    t += `• ระยะเวลา: ${rangeText(o)} (${o.months} เดือน)\n• ค่าใช้จ่าย (1 คน):\n${o.segs.map(s => `   - ${segLabel(s)}: ${s.price} × ${s.n} = ${(s.price*s.n).toLocaleString('th-TH')} บาท`).join('\n')}\n• รวม: ${o.base.toLocaleString('th-TH')} บาท`;
+  }
   if(m.adjust) t += `\n• ปรับยอด: ${m.adjust>0?'+':''}${m.adjust} บาท${m.note?' ('+m.note+')':''}\n• ยอดที่ต้องชำระ: ${o.total.toLocaleString('th-TH')} บาท`;
   t += `\n\nสแกน QR พร้อมเพย์ได้ที่ ${SITE}\nหรือโอนพร้อมเพย์ ${S.promptpay} ${S.payee} 🙏`;
   return t;
@@ -172,38 +201,81 @@ function viewChange(){
 
 // ---------- หน้า: สมาชิก ----------
 async function viewMember(me){
-  const [{ data:S }, { data:pays }] = await Promise.all([
+  const [{ data:S }, { data:pays }, { data:prices }] = await Promise.all([
     sb.from('settings').select('*').single(),
-    sb.from('payments').select('*').eq('member_id', me.id).order('paid_on', { ascending:false })
+    sb.from('payments').select('*').eq('member_id', me.id).order('paid_on', { ascending:false }),
+    sb.from('price_changes').select('*')
   ]);
+  setPrices(prices, S);
   const o = owe(me, S);
   let main;
   if(!me.billed) main = `<div class="big okc">ไม่มียอด</div>`;
   else if(!o) main = `<div class="mut">ยังไม่มียอด รอแอดมินตั้งค่า</div>`;
   else if(o.total <= 0) main = `<div class="big okc">จ่ายครบแล้ว</div><div class="mut small" style="margin-top:8px">จ่ายถึง ${ml(me.paid_until)}</div>`;
   else main = `<div class="big due">${baht(o.total)}</div>
-    <div style="margin-top:10px">${rangeText(o)} · ${o.months} เดือน × ${S.price} บาท${me.adjust?` · ปรับยอด ${me.adjust>0?'+':''}${me.adjust}${me.note?' ('+esc(me.note)+')':''}`:''}</div>
+    <div style="margin-top:10px">${rangeText(o)} · ${priceText(o)}${me.adjust?` · ปรับยอด ${me.adjust>0?'+':''}${me.adjust}${me.note?' ('+esc(me.note)+')':''}`:''}</div>
     <div class="mut small">จ่ายแล้วถึง ${ms(me.paid_until)}</div>
     <div class="qr"><div class="qrhead">PromptPay</div><img alt="QR พร้อมเพย์ ${o.total} บาท" src="${qrImg(ppPayload(S.promptpay, o.total))}">
       <div class="pp"><b>${baht(o.total)}</b><br>${esc(S.payee)} · ${esc(S.promptpay)}</div></div>
-    <p class="mut small" style="margin:10px 0 0">สแกนด้วยแอปธนาคาร แล้วส่งสลิปให้พี่เจมส์ ยอดจะอัปเดตเมื่อแอดมินยืนยัน</p>`;
+    <p class="mut small" style="margin:10px 0 0">สแกนด้วยแอปธนาคาร โอนแล้วอัปโหลดสลิปด้านล่าง ระบบจะตรวจและอัปเดตยอดให้อัตโนมัติ</p>
+    <div class="slipbox">
+      <input id="slipFile" type="file" accept="image/jpeg,image/png,image/webp" hidden>
+      <button id="slipPick" style="width:100%">📎 แนบรูปสลิป</button>
+      <div id="slipPrev" hidden>
+        <img id="slipImg" alt="ตัวอย่างสลิป" style="max-width:100%;max-height:280px;border-radius:10px;display:block;margin:12px auto 0">
+        <div class="mut small" id="slipName" style="text-align:center;margin-top:6px"></div>
+      </div>
+      <button class="pri" id="slipGo" style="margin-top:12px;width:100%" hidden>ตรวจสอบสลิป</button>
+      <div class="err" id="slipEr" style="margin-top:8px"></div>
+    </div>`;
   app.innerHTML = `<p class="mut" style="margin:18px 0 0">สวัสดี ${esc(me.name)}</p>
     <section class="panel"><div class="mut small">ยอดที่ต้องชำระ (ถึง ${ms(S.bill_until)})</div>${main}</section>
     <h2>ประวัติการชำระ</h2>
     <ul class="hist">${pays && pays.length ? pays.map(p => `<li><span>${thDate(p.paid_on)}<br><span class="mut small">${ms(p.from_m)} – ${ms(p.to_m)}</span></span><span class="num">${baht(p.amount)}</span></li>`).join('') : '<li class="mut">ยังไม่มีประวัติ</li>'}</ul>
     <h2>บัญชี</h2><button id="chg">เปลี่ยนรหัสผ่าน</button>`;
   $('#chg').addEventListener('click', viewChange);
+  if($('#slipPick')){
+    const input = $('#slipFile'), go = $('#slipGo'), er = $('#slipEr');
+    let file = null, prevUrl = null;
+    $('#slipPick').addEventListener('click', () => input.click());
+    input.addEventListener('change', () => {
+      er.textContent = '';
+      const f = input.files[0]; if(!f) return;
+      if(!/^image\/(jpeg|png|webp)$/.test(f.type)){ er.textContent = 'รองรับเฉพาะไฟล์ JPG, PNG, WEBP'; input.value = ''; return; }
+      if(f.size > 5*1024*1024){ er.textContent = 'ไฟล์ใหญ่เกิน 5MB'; input.value = ''; return; }
+      file = f;
+      if(prevUrl) URL.revokeObjectURL(prevUrl);
+      prevUrl = URL.createObjectURL(f);
+      $('#slipImg').src = prevUrl; $('#slipName').textContent = f.name;
+      $('#slipPrev').hidden = false; go.hidden = false; $('#slipPick').textContent = '🔄 เปลี่ยนรูป';
+    });
+    go.addEventListener('click', async () => {
+      if(!file) return;
+      er.textContent = ''; go.disabled = true; $('#slipPick').disabled = true; go.textContent = 'กำลังตรวจสอบสลิป...';
+      const reset = () => { go.disabled = false; $('#slipPick').disabled = false; go.textContent = 'ตรวจสอบสลิป'; };
+      try{
+        const fd = new FormData(); fd.append('file', file);
+        const { data:{ session } } = await sb.auth.getSession();
+        const res = await fetch(SUPABASE_URL + '/functions/v1/verify-slip', {
+          method:'POST', headers:{ Authorization:'Bearer ' + session.access_token, apikey:SUPABASE_ANON_KEY }, body:fd });
+        const j = await res.json().catch(() => ({}));
+        if(!j.ok){ er.textContent = j.error || 'ตรวจสลิปไม่สำเร็จ ลองใหม่อีกครั้ง'; reset(); return; }
+        toast('ตรวจสลิปผ่าน บันทึกการชำระเงินแล้ว'); route();
+      }catch(err){ er.textContent = 'เชื่อมต่อไม่ได้ ลองใหม่อีกครั้ง'; reset(); }
+    });
+  }
 }
 
 // ---------- หน้า: แอดมิน ----------
 let A = { S:null, members:[], pays:[], open:null };
 async function loadAdmin(){
-  const [s, m, p] = await Promise.all([
+  const [s, m, p, pr] = await Promise.all([
     sb.from('settings').select('*').single(),
     sb.from('members').select('*').order('sort').order('id'),
-    sb.from('payments').select('*, members(name)').order('created_at', { ascending:false }).limit(60)
+    sb.from('payments').select('*, members(name)').order('created_at', { ascending:false }).limit(60),
+    sb.from('price_changes').select('*')
   ]);
-  A.S = s.data; A.members = m.data || []; A.pays = p.data || [];
+  A.S = s.data; A.priceErr = !!pr.error; setPrices(pr.data, A.S); A.members = m.data || []; A.pays = p.data || [];
   renderAdmin();
 }
 function monthOpts(sel, none){
@@ -222,9 +294,11 @@ function renderAdmin(){
       status = `จ่ายถึง ${ms(m.paid_until)}${o.months?` · ค้าง ${ms(o.from)}–${ms(o.to)}`:''}${m.adjust?` · ปรับ ${m.adjust>0?'+':''}${m.adjust}`:''}`; }
     const acc = m.user_id ? (m.must_change_password ? '<span class="tag">รอเปลี่ยนรหัส</span>' : '<span class="tag">มีบัญชีแล้ว</span>') : (m.email ? '<span class="tag">ยังไม่สร้างบัญชี</span>' : '');
     const due = o && o.total > 0;
-    const acts = (due ? `<button class="pri" data-a="copy" data-k="${k}">คัดลอกข้อความ</button><button data-a="paid" data-k="${k}">รับเงินแล้ว ${baht(o.total)}</button>` : '')
-      + (m.email && !m.is_admin ? `<button data-a="login" data-k="${k}">${m.user_id?'รีเซ็ตรหัส':'สร้างยูสเซอร์'}</button>` : '')
-      + `<button class="ghost" data-a="edit" data-k="${k}">${A.open===m.id?'ปิด':'แก้ไข'}</button>`;
+    const items = (due ? `<button class="ghost" role="menuitem" data-a="copy" data-k="${k}">คัดลอกข้อความ</button>` : '')
+      + (m.email && !m.is_admin ? `<button class="ghost" role="menuitem" data-a="login" data-k="${k}">${m.user_id?'รีเซ็ตรหัส':'สร้างยูสเซอร์'}</button>` : '')
+      + `<button class="ghost" role="menuitem" data-a="edit" data-k="${k}">${A.open===m.id?'ปิดการแก้ไข':'แก้ไข'}</button>`;
+    const acts = due ? `<button class="pri" data-a="paid" data-k="${k}">รับเงินแล้ว ${baht(o.total)}</button>` : '';
+    const more = `<span class="more"><button class="ghost" data-a="more" aria-label="เมนูเพิ่มเติม" aria-haspopup="menu" aria-expanded="false" title="เมนูเพิ่มเติม"><svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor" aria-hidden="true"><circle cx="3" cy="9" r="1.8"/><circle cx="9" cy="9" r="1.8"/><circle cx="15" cy="9" r="1.8"/></svg></button><div class="menu" role="menu" hidden>${items}</div></span>`;
     const ed = A.open === m.id ? `<div class="edit">
       <label class="chk"><input type="checkbox" id="eB" ${m.billed?'checked':''}>เรียกเก็บเงินคนนี้</label>
       <div class="row2"><label>ชื่อ<input id="eN" value="${esc(m.name)}"></label><label>อีเมล (ใช้ล็อกอิน)<input id="eE" type="email" value="${esc(m.email)}"></label></div>
@@ -233,18 +307,21 @@ function renderAdmin(){
       ${due ? `<pre>${esc(billMsg(m,S))}</pre>` : ''}
       <div style="display:flex;flex-wrap:wrap;gap:8px"><button class="pri" data-a="save" data-k="${k}">บันทึก</button>${m.is_admin?'':`<button class="ghost" data-a="del" data-k="${k}">ลบสมาชิก</button>`}</div></div>` : '';
     return `<div class="m"><div class="mh"><div class="av" style="background:${COLORS[k%6]}">${esc([...m.name.trim()][0]||'?')}</div>
-      <div class="mi"><div class="nm">${esc(m.name)}${m.is_admin?'<span class="tag">แอดมิน</span>':''}${acc}</div><div class="mut small">${esc(m.email||'ไม่มีอีเมล')}</div><div class="small" style="margin-top:2px">${status}</div></div>${right}</div>
-      <div class="acts">${acts}</div>${ed}</div>`;
+      <div class="mi"><div class="nm">${esc(m.name)}${m.is_admin?'<span class="tag">แอดมิน</span>':''}${acc}</div><div class="mut small">${esc(m.email||'ไม่มีอีเมล')}</div><div class="small" style="margin-top:2px">${status}</div></div><div class="rt">${right}${more}</div></div>
+      ${acts ? `<div class="acts">${acts}</div>` : ''}${ed}</div>`;
   }).join('');
   app.innerHTML = `<div class="top"><label for="until" style="font-size:15px;color:var(--ink)">เก็บถึงเดือน</label><select id="until">${monthOpts(S.bill_until)}</select></div>
-    <section class="panel"><div class="mut small">ยอดค้างรวมทุกคน · ${S.price} บาท/คน/เดือน</div><div class="big">${baht(sum)}</div></section>
+    <section class="panel"><div class="mut small">ยอดค้างรวมทุกคน · ${priceAt(S.bill_until)} บาท/คน/เดือน</div><div class="big">${baht(sum)}</div></section>
     <h2>สมาชิก</h2>${rows}<button data-a="add" style="margin-top:8px">+ เพิ่มสมาชิก</button>
     <h2>ประวัติรับเงิน</h2>
     <ul class="hist">${A.pays.length ? A.pays.map((p,j) => `<li><span><b>${esc(p.members?.name||'-')}</b><br><span class="mut small">${thDate(p.paid_on)} · ${ms(p.from_m)}–${ms(p.to_m)}</span></span><span style="display:flex;gap:6px;align-items:center"><span class="num">${baht(p.amount)}</span>${j===0?`<button class="ghost" data-a="undo" data-id="${p.id}">ยกเลิก</button>`:''}</span></li>`).join('') : '<li class="mut">ยังไม่มีรายการ</li>'}</ul>
     <h2>ตั้งค่า</h2>
-    <div class="set"><label>ราคาต่อคน/เดือน (บาท)<input id="sPrice" type="number" inputmode="numeric" value="${S.price}"></label>
+    <div class="set"><label>ราคาต่อคน/เดือน (บาท)<input id="sPrice" type="number" inputmode="numeric" value="${priceAt(S.bill_until)}"></label>
+      <label>ราคาใหม่มีผลตั้งแต่เดือน<select id="sFrom">${monthOpts(S.bill_until + 1)}</select></label>
       <label>พร้อมเพย์ (เบอร์หรือเลขบัตร)<input id="sPP" inputmode="numeric" value="${esc(S.promptpay)}"></label>
       <label>ชื่อบัญชี<input id="sPayee" value="${esc(S.payee)}"></label></div>
+    <p class="mut small" style="margin:10px 0 0">เปลี่ยนราคาแล้ว เดือนก่อนเดือนที่เลือกที่ยังไม่จ่ายจะยังคิดราคาเดิม${A.priceErr ? ' <span class="warn">(ยังไม่พบตารางราคา ให้รัน supabase/price_changes.sql ก่อน)</span>' : ''}</p>
+    ${PR.length > 1 ? `<p class="mut small" style="margin:6px 0 0">ประวัติราคา: ${PR.map(r => `${r.from_m === 0 ? 'เดิม' : 'ตั้งแต่ ' + ms(r.from_m)} ${r.price} บาท`).join(' → ')}</p>` : ''}
     <button data-a="settings" style="margin-top:12px">บันทึกการตั้งค่า</button>`;
   $('#until').addEventListener('change', async e => { await dbDo(sb.from('settings').update({ bill_until:+e.target.value }).eq('id',1)); });
 }
@@ -253,12 +330,37 @@ async function dbDo(q, ok){
   if(error){ toast('ไม่สำเร็จ: ' + error.message); return false; }
   if(ok) toast(ok); await loadAdmin(); return true;
 }
+function closeMenus(except){
+  document.querySelectorAll('.menu:not([hidden])').forEach(mn => {
+    if(mn === except) return;
+    mn.hidden = true; mn.previousElementSibling.setAttribute('aria-expanded','false');
+  });
+}
+document.addEventListener('keydown', e => { if(e.key === 'Escape') closeMenus(); });
 app.addEventListener('click', async e => {
-  const b = e.target.closest('button[data-a]'); if(!b || !A.S) return;
+  const b = e.target.closest('button[data-a]');
+  if(b && b.dataset.a === 'more'){
+    const mn = b.nextElementSibling; closeMenus(mn);
+    mn.hidden = !mn.hidden; b.setAttribute('aria-expanded', String(!mn.hidden));
+    if(!mn.hidden) mn.querySelector('button')?.focus();
+    return;
+  }
+  closeMenus();
+  if(!b || !A.S) return;
   const a = b.dataset.a, m = A.members[+b.dataset.k];
   if(a === 'copy') copy(billMsg(m, A.S));
   else if(a === 'edit'){ A.open = A.open === m.id ? null : m.id; renderAdmin(); }
-  else if(a === 'paid'){ b.disabled = true; await dbDo(sb.rpc('mark_paid', { p_member:m.id }), 'บันทึกรับเงินแล้ว'); }
+  else if(a === 'paid'){
+    const o = owe(m, A.S);
+    modal(`<h2 style="margin:0">ยืนยันการรับเงิน</h2>
+      <p style="margin:0"><b>${esc(m.name)}</b><br>${o ? `${rangeText(o)} · ${o.months} เดือน<br>` : ''}ยอด <b>${baht(o ? o.total : 0)}</b></p>
+      <p class="mut small" style="margin:0">เมื่อยืนยันแล้วระบบจะบันทึกว่าจ่ายถึง ${ms(A.S.bill_until)} (ยกเลิกได้จากประวัติรับเงิน)</p>
+      <div style="display:flex;flex-wrap:wrap;gap:8px"><button class="pri" id="pOk">ยืนยันรับเงิน</button><button class="ghost" id="pNo">ยกเลิก</button></div>`);
+    $('#pNo').onclick = closeModal;
+    $('#pOk').onclick = async ev => { ev.target.disabled = true; $('#pNo').disabled = true; closeModal();
+      await dbDo(sb.rpc('mark_paid', { p_member:m.id }), 'บันทึกรับเงินแล้ว'); };
+    $('#pNo').focus();
+  }
   else if(a === 'undo'){ await dbDo(sb.rpc('undo_payment', { p_id:+b.dataset.id }), 'ยกเลิกรายการแล้ว'); }
   else if(a === 'save'){
     const p = $('#eP').value;
@@ -276,7 +378,15 @@ app.addEventListener('click', async e => {
     A.open = data.id; await loadAdmin();
   }
   else if(a === 'settings'){
-    await dbDo(sb.from('settings').update({ price:+$('#sPrice').value||A.S.price, promptpay:$('#sPP').value.trim(), payee:$('#sPayee').value.trim() }).eq('id',1), 'บันทึกการตั้งค่าแล้ว');
+    const np = Math.round(+$('#sPrice').value), from = +$('#sFrom').value;
+    let latest = A.S.price;
+    if(np > 0 && np !== priceAt(from)){
+      const { error } = await sb.from('price_changes').upsert({ from_m:from, price:np });
+      if(error) return toast('บันทึกราคาไม่สำเร็จ: ' + error.message);
+      const rows = PR.filter(r => r.from_m !== from).concat({ from_m:from, price:np }).sort((a,b) => a.from_m - b.from_m);
+      latest = rows[rows.length-1].price;
+    }
+    await dbDo(sb.from('settings').update({ price:latest, promptpay:$('#sPP').value.trim(), payee:$('#sPayee').value.trim() }).eq('id',1), 'บันทึกการตั้งค่าแล้ว');
   }
   else if(a === 'login'){
     if(m.user_id && !b.dataset.sure){ b.dataset.sure='1'; b.textContent='กดอีกครั้งเพื่อรีเซ็ตรหัส'; return; }

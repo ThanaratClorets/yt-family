@@ -34,6 +34,8 @@ button:disabled{opacity:.5;cursor:default}
 .qr{display:grid;justify-items:center;gap:6px;margin-top:18px;padding:16px;background:#fff;border-radius:14px;color:#111}
 .qr img{width:min(260px,70vw);height:auto;image-rendering:pixelated}
 .qr .pp{font-size:14px;text-align:center}
+.qracts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+@media(max-width:380px){.qracts{grid-template-columns:1fr}}
 .qrhead{background:#113566;color:#fff;font-weight:700;font-size:14px;padding:4px 14px;border-radius:6px}
 .hist{list-style:none;padding:0;margin:0}
 .hist li{display:flex;gap:10px;justify-content:space-between;align-items:center;border-top:1px solid var(--line);padding:11px 0}
@@ -202,6 +204,32 @@ function viewChange(){
   });
 }
 
+// ---------- บันทึกรูป QR ลงเครื่อง ----------
+async function saveQr(S, o){
+  try{
+    const img = new Image(); img.src = qrImg(ppPayload(S.promptpay, o.total));
+    await img.decode();
+    const W = 640, H = 860, c = document.createElement('canvas'); c.width = W; c.height = H;
+    const g = c.getContext('2d');
+    g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
+    g.fillStyle = '#113566'; g.fillRect(0, 0, W, 90);
+    g.fillStyle = '#fff'; g.font = '700 40px sans-serif'; g.textAlign = 'center'; g.fillText('PromptPay', W/2, 60);
+    g.imageSmoothingEnabled = false; g.drawImage(img, 70, 120, 500, 500);
+    g.fillStyle = '#111'; g.font = '700 64px sans-serif'; g.fillText(baht(o.total), W/2, 700);
+    g.font = '32px sans-serif'; g.fillText(S.payee, W/2, 760);
+    g.fillStyle = '#555'; g.font = '30px sans-serif'; g.fillText(S.promptpay, W/2, 810);
+    const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+    const name = `promptpay-${o.total}.png`, file = new File([blob], name, { type:'image/png' });
+    if(navigator.canShare && navigator.canShare({ files:[file] })){
+      try{ await navigator.share({ files:[file], title:'QR พร้อมเพย์' }); return; }
+      catch(e){ if(e.name === 'AbortError') return; } // ยกเลิกเอง = ไม่ต้องทำอะไร / อย่างอื่นใช้ดาวน์โหลดแทน
+    }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    toast('บันทึกรูปแล้ว ดูในโฟลเดอร์ดาวน์โหลด');
+  }catch(e){ toast('บันทึกรูปไม่ได้ ลองกดค้างที่รูป QR แล้วเลือกบันทึกรูปภาพ'); }
+}
+
 // ---------- หน้า: สมาชิก ----------
 async function viewMember(me){
   const [{ data:S }, { data:pays }, { data:prices }] = await Promise.all([
@@ -220,6 +248,7 @@ async function viewMember(me){
     <div class="mut small">จ่ายแล้วถึง ${ms(me.paid_until)}</div>
     <div class="qr"><div class="qrhead">PromptPay</div><img alt="QR พร้อมเพย์ ${o.total} บาท" src="${qrImg(ppPayload(S.promptpay, o.total))}">
       <div class="pp"><b>${baht(o.total)}</b><br>${esc(S.payee)} · ${esc(S.promptpay)}</div></div>
+    <div class="qracts"><button id="qrSave">💾 บันทึกรูป QR</button><button id="ppCopy">📋 คัดลอกเลขพร้อมเพย์</button></div>
     <p class="mut small" style="margin:10px 0 0">สแกนด้วยแอปธนาคาร โอนแล้วอัปโหลดสลิปด้านล่าง ระบบจะตรวจและอัปเดตยอดให้อัตโนมัติ</p>
     <div class="slipbox">
       <input id="slipFile" type="file" accept="image/jpeg,image/png,image/webp" hidden>
@@ -237,6 +266,10 @@ async function viewMember(me){
     <ul class="hist">${pays && pays.length ? pays.map(p => `<li><span>${thDate(p.paid_on)}<br><span class="mut small">${ms(p.from_m)} – ${ms(p.to_m)}</span></span><span class="num">${baht(p.amount)}</span></li>`).join('') : '<li class="mut">ยังไม่มีประวัติ</li>'}</ul>
     <h2>บัญชี</h2><button id="chg">เปลี่ยนรหัสผ่าน</button>`;
   $('#chg').addEventListener('click', viewChange);
+  if($('#ppCopy')){
+    $('#ppCopy').addEventListener('click', () => copy(String(S.promptpay).replace(/\D/g, '')));
+    $('#qrSave').addEventListener('click', () => saveQr(S, o));
+  }
   if($('#slipPick')){
     const input = $('#slipFile'), go = $('#slipGo'), er = $('#slipEr');
     let file = null, prevUrl = null;
